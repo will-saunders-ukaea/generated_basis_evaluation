@@ -38,15 +38,34 @@ def generate_block(components, t="REAL"):
 
 
 def generate_evaluate(P, geom_type, t):
-    geom_inst = geom_type(P)
 
-    instr, ops = generate_block(geom_inst.get_blocks(), t)
-    instr_str = "\n".join(["  " + ix for ix in instr])
+    geom_inst0 = geom_type(0)
+    namespace = geom_inst0.namespace
+    shape_name = namespace.lower()
+    third_coord = f"\nconst {t} eta2," if geom_inst0.ndim == 3 else ""
+
+    funcs = f"""namespace NESO::GeneratedEvaluation::{namespace} {{
     
-    third_coord = f"\nconst {t} eta2," if geom_inst.ndim == 3 else ""
-    func = f"""
+template <size_t NUM_MODES>
+inline {t} evaluate(
+  const {t} eta0,
+  const {t} eta1,{third_coord}
+  const NekDouble * dofs
+){{
+  static_assert(false, "Implementation not defined.");
+  return {t}(0);
+}}
+    """
+
+    for px in range(2, P+1):
+
+        geom_inst = geom_type(px)
+        instr, ops = generate_block(geom_inst.get_blocks(), t)
+        instr_str = "\n".join(["  " + ix for ix in instr])
+        
+        func = f"""
 template <>
-inline {t} quadrilateral_evaluate_scalar<{P}>(
+inline {t} evaluate<{px}>(
   const {t} eta0,
   const {t} eta1,{third_coord}
   const NekDouble * dofs
@@ -54,7 +73,10 @@ inline {t} quadrilateral_evaluate_scalar<{P}>(
 {instr_str}
   return {geom_inst.generate_variable()};
 }}
-    """
+"""
+        funcs += func
 
-    return ops, func
+    funcs += f"}} // namespace NESO::GeneratedEvaluation::{namespace}"
+
+    return ops, funcs
 

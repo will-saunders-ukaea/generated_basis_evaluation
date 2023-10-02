@@ -7,5 +7,6 @@ if __name__ == "__main__":
     
     P = 4
     quad_eval_ops, quad_eval_src = generate_evaluate(P, QuadrilateralEvaluate, t = "sycl::vec<REAL, VECTOR_LENGTH>")
+    # quad_eval_ops, quad_eval_src = generate_evaluate(P, QuadrilateralEvaluate, t = "REAL")
 
     print(quad_eval_src)

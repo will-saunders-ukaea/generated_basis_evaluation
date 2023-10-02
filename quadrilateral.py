@@ -6,6 +6,7 @@ from basis_functions import *
 
 class Quadrilateral:
     def __init__(self, P):
+        self.namespace = "Quadrilateral"
         self.P = P
         self.dofs = DofReader("dofs", self.total_num_modes())
 
@@ -16,7 +17,7 @@ class Quadrilateral:
         self.dir0 = eModified_A(P, self.eta0, jacobi0)
         self.dir1 = eModified_A(P, self.eta1, jacobi1)
         self.ndim = 2
-        self.common = [jacobi0, self.dir0, jacobi1, self.dir1]
+        self.common = [jacobi0, self.dir0, jacobi1, self.dir1, self.dofs]
 
     def total_num_modes(self):
         return self.P * self.P
