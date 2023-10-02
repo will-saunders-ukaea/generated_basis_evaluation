@@ -57,10 +57,10 @@ inline constexpr int mode_max = {P};
 template <size_t NUM_MODES>
 inline {t} evaluate(
   const {t} eta0,
-  const {t} eta1,{third_coord}
-  const NekDouble * dofs
+  const {t} eta1,
+  [[maybe_unused]] const {t} eta2,
+  const REAL * dofs
 ){{
-  static_assert(false, "Implementation not defined.");
   return {t}(0);
 }}
 /**
@@ -68,7 +68,6 @@ inline {t} evaluate(
  */
 template <size_t NUM_MODES>
 inline int flop_count(){{
-  static_assert(false, "Implementation not defined.");
   return (0);
 }}
     """
@@ -94,8 +93,9 @@ inline int flop_count<{px}>(){{
 template <>
 inline {t} evaluate<{px}>(
   const {t} eta0,
-  const {t} eta1,{third_coord}
-  const NekDouble * dofs
+  const {t} eta1,
+  [[maybe_unused]] const {t} eta2,
+  const REAL * dofs
 ){{
 {instr_str}
   return {geom_inst.generate_variable()};
@@ -105,5 +105,202 @@ inline {t} evaluate<{px}>(
 
     funcs += f"}} // namespace NESO::GeneratedEvaluation::{namespace}"
 
-    return ops, funcs
+    return funcs
+
+
+def generate_vector_wrappers(P, geom_type):
+    t = "sycl::vec<REAL, NESO_VECTOR_LENGTH>"
+    eval_sources = generate_evaluate(P, geom_type, t)
+    geom_inst0 = geom_type(0)
+    namespace = geom_inst0.namespace
+    shape_name = namespace.lower()
+
+    cases = []
+    for px in range(2, P+1):
+        cases.append(f"""
+    case {px}:
+      evaluate_vector<{px}>(
+        sycl_target,
+        evaluation_type,
+        particle_group, 
+        sym,
+        component,
+        map_shape_to_count,
+        k_global_coeffs,
+        h_coeffs_offsets,
+        h_cells_iterset,
+        event_stack
+      );
+      return true;""")
+    
+    cases = "\n".join(cases)
+
+    funcs = """
+
+namespace NESO::GeneratedEvaluation::%(NAMESPACE)s {
+
+
+template <size_t NUM_MODES, typename EVALUATE_TYPE, typename COMPONENT_TYPE>
+inline void evaluate_vector(
+    SYCLTargetSharedPtr sycl_target,
+    ExpansionLooping::JacobiExpansionLoopingInterface<EVALUATE_TYPE> evaluation_type,
+    ParticleGroupSharedPtr particle_group, 
+    Sym<COMPONENT_TYPE> sym,
+    const int component,
+    std::map<ShapeType, int> &map_shape_to_count,
+    const REAL * k_global_coeffs,
+    const int * h_coeffs_offsets,
+    const int * h_cells_iterset,
+    EventStack &event_stack
+  ) {
+
+  const ShapeType shape_type = evaluation_type.get_shape_type();
+  const int cells_iterset_size = map_shape_to_count.at(shape_type);
+  if (cells_iterset_size == 0) {
+    return;
+  }
+
+  auto mpi_rank_dat = particle_group->mpi_rank_dat;
+
+  const auto k_ref_positions =
+      (*particle_group)[Sym<REAL>("NESO_REFERENCE_POSITIONS")]
+          ->cell_dat.device_ptr();
+
+  auto k_output = (*particle_group)[sym]->cell_dat.device_ptr();
+  const int k_component = component;
+
+  for(int cell_idx=0 ; cell_idx<cells_iterset_size ; cell_idx++){
+    const int cellx = h_cells_iterset[cell_idx];
+    const int dof_offset = h_coeffs_offsets[cellx];
+    const REAL *dofs = k_global_coeffs + dof_offset;
+
+    auto event_loop = sycl_target->queue.submit([&](sycl::handler &cgh) {
+      const int num_particles = mpi_rank_dat->h_npart_cell[cellx]; 
+
+      const auto div_mod =
+          std::div(static_cast<long long>(num_particles), static_cast<long long>(NESO_VECTOR_LENGTH));
+      const std::size_t num_blocks =
+          static_cast<std::size_t>(div_mod.quot + (div_mod.rem == 0 ? 0 : 1));
+
+      cgh.parallel_for<>(
+          sycl::range<1>(static_cast<size_t>(num_blocks)),
+          [=](sycl::id<1> idx) {
+
+            const INT layer_start = idx * NESO_VECTOR_LENGTH;
+            const INT layer_end = std::min(INT(layer_start + NESO_VECTOR_LENGTH), INT(num_particles));
+            ExpansionLooping::JacobiExpansionLoopingInterface<EVALUATE_TYPE>
+                loop_type{};
+            const int k_ndim = loop_type.get_ndim();
+
+            REAL eta0_local[NESO_VECTOR_LENGTH];
+            REAL eta1_local[NESO_VECTOR_LENGTH];
+            REAL eta2_local[NESO_VECTOR_LENGTH];
+            REAL eval_local[NESO_VECTOR_LENGTH];
+            for(int ix=0 ; ix<NESO_VECTOR_LENGTH ; ix++){
+              eta0_local[ix] = 0.0;
+              eta1_local[ix] = 0.0;
+              eta2_local[ix] = 0.0;
+              eval_local[ix] = 0.0;
+            }
+            int cx = 0;
+            for(int ix=layer_start ; ix<layer_end ; ix++){
+
+              REAL xi0, xi1, xi2, eta0, eta1, eta2;
+              xi0 = k_ref_positions[cellx][0][ix];
+              if (k_ndim > 1) {
+                xi1 = k_ref_positions[cellx][1][ix];
+              }
+              if (k_ndim > 2) {
+                xi2 = k_ref_positions[cellx][2][ix];
+              }
+              loop_type.loc_coord_to_loc_collapsed(xi0, xi1, xi2, &eta0, &eta1,
+                                                   &eta2);
+              eta0_local[cx] = eta0;
+              eta1_local[cx] = eta1;
+              eta2_local[cx] = eta2;
+              cx++;
+            }
+
+            sycl::local_ptr<const REAL> eta0_ptr(eta0_local);
+            sycl::local_ptr<const REAL> eta1_ptr(eta1_local);
+            sycl::local_ptr<const REAL> eta2_ptr(eta2_local);
+
+            sycl::vec<REAL, NESO_VECTOR_LENGTH> eta0, eta1, eta2;
+            eta0.load(0, eta0_ptr);
+            eta1.load(0, eta1_ptr);
+            eta2.load(0, eta2_ptr);
+
+            const sycl::vec<REAL, NESO_VECTOR_LENGTH> eval = 
+              evaluate<NUM_MODES>(eta0, eta1, eta2, dofs);
+
+            sycl::local_ptr<REAL> eval_ptr(eval_local);
+            eval.store(0, eval_ptr);
+
+            cx = 0;
+            for(int ix=layer_start ; ix<layer_end ; ix++){
+              k_output[cellx][k_component][ix] = eval_local[cx];
+              cx++;
+            }
+          });
+    });
+
+    event_stack.push(event_loop);
+
+  }
+  return;
+}
+""" % {"NAMESPACE": namespace}
+
+    funcs += f"""
+template <typename EVALUATE_TYPE, typename COMPONENT_TYPE>
+inline bool vector_call_exists(
+    const int num_modes,
+    SYCLTargetSharedPtr sycl_target,
+    ExpansionLooping::JacobiExpansionLoopingInterface<EVALUATE_TYPE> evaluation_type,
+    ParticleGroupSharedPtr particle_group, 
+    Sym<COMPONENT_TYPE> sym,
+    const int component,
+    std::map<ShapeType, int> &map_shape_to_count,
+    const REAL * k_global_coeffs,
+    const int * h_coeffs_offsets,
+    const int * h_cells_iterset,
+    EventStack &event_stack
+  ) {{
+
+  if (
+      (num_modes >= 2) && (num_modes <= {P})
+  ) {{
+    switch(num_modes) {{
+{cases}
+
+      default:
+        return false;
+    }}
+  }} else {{
+    return false;
+  }}
+}}
+"""
+
+    funcs += f"}} // namespace NESO::GeneratedEvaluation::{namespace}\n"
+    funcs = eval_sources + funcs
+    return funcs
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
