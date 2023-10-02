@@ -45,7 +45,15 @@ def generate_evaluate(P, geom_type, t):
     third_coord = f"\nconst {t} eta2," if geom_inst0.ndim == 3 else ""
 
     funcs = f"""namespace NESO::GeneratedEvaluation::{namespace} {{
-    
+
+/// The minimum number of modes which implementations are generated for.
+inline constexpr int mode_min = 2;
+/// The maximum number of modes which implementations are generated for.
+inline constexpr int mode_max = {P};
+
+/**
+ * TODO
+ */
 template <size_t NUM_MODES>
 inline {t} evaluate(
   const {t} eta0,
@@ -54,6 +62,14 @@ inline {t} evaluate(
 ){{
   static_assert(false, "Implementation not defined.");
   return {t}(0);
+}}
+/**
+ * TODO
+ */
+template <size_t NUM_MODES>
+inline int flop_count(){{
+  static_assert(false, "Implementation not defined.");
+  return (0);
 }}
     """
 
@@ -64,6 +80,17 @@ inline {t} evaluate(
         instr_str = "\n".join(["  " + ix for ix in instr])
         
         func = f"""
+/**
+ * TODO
+ */
+template <>
+inline int flop_count<{px}>(){{
+  return {ops};
+}}
+/**
+ * TODO
+ * Sympy flop count: {ops}
+ */
 template <>
 inline {t} evaluate<{px}>(
   const {t} eta0,
