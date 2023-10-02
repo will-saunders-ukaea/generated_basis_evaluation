@@ -37,4 +37,24 @@ def generate_block(components, t="REAL"):
     return instr, ops
 
 
+def generate_evaluate(P, geom_type, t):
+    geom_inst = geom_type(P)
+
+    instr, ops = generate_block(geom_inst.get_blocks(), t)
+    instr_str = "\n".join(["  " + ix for ix in instr])
+    
+    third_coord = f"\nconst {t} eta2," if geom_inst.ndim == 3 else ""
+    func = f"""
+template <>
+inline {t} quadrilateral_evaluate_scalar<{P}>(
+  const {t} eta0,
+  const {t} eta1,{third_coord}
+  const NekDouble * dofs
+){{
+{instr_str}
+  return {geom_inst.generate_variable()};
+}}
+    """
+
+    return ops, func
 

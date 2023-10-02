@@ -1,24 +1,35 @@
 from sympy import *
 import functools
 from dof_reader import *
+from jacobi import *
+from basis_functions import *
 
-class QuadrilateralEvaluate:
-    def __init__(self, P, dofs, dir0, dir1):
+class Quadrilateral:
+    def __init__(self, P):
         self.P = P
-        self.dofs = dofs
-        self.dir0 = dir0
-        self.dir1 = dir1
-        self.eta0 = dir0.z
-        self.eta1 = dir1.z
-        self._g = self._generate()
+        self.dofs = DofReader("dofs", self.total_num_modes())
 
-    def generate(self):
-        return self._g
+        self.eta0 = symbols("eta0")
+        self.eta1 = symbols("eta1")
+        jacobi0 = GenJacobi(self.eta0)
+        jacobi1 = GenJacobi(self.eta1)
+        self.dir0 = eModified_A(P, self.eta0, jacobi0)
+        self.dir1 = eModified_A(P, self.eta1, jacobi1)
+        self.ndim = 2
+        self.common = [jacobi0, self.dir0, jacobi1, self.dir1]
+
+    def total_num_modes(self):
+        return self.P * self.P
 
     def generate_variable(self):
         return symbols(f"eval_{self.eta0}_{self.eta1}")
 
-    def _generate(self):
+    def get_blocks(self):
+        return self.common + [self,]
+
+class QuadrilateralEvaluate(Quadrilateral):
+
+    def generate(self):
         ev = self.generate_variable()
         g = [
         ]
@@ -38,83 +49,5 @@ class QuadrilateralEvaluate:
             (ev, functools.reduce(lambda x,y: x+y, tmps))
         )
         return g
-
-
-def quadrilateral_evaluate_scalar(P, dofs, eta0, eta1):
-    jacobi0 = GenJacobi(eta0)
-    dir0 = eModified_A(P, eta0, jacobi0)
-    jacobi1 = GenJacobi(eta1)
-    dir1 = eModified_A(P, eta1, jacobi1)
-    dof_reader = DofReader(dofs, P * P)
-    loop = QuadrilateralEvaluate(P, dof_reader, dir0, dir1)
-    
-
-    blocks = [
-        jacobi0, dir0,
-        jacobi1, dir1,
-        dof_reader,
-        loop
-    ]
-
-    instr, ops = generate_block(blocks, "REAL")
-    instr_str = "\n".join(["  " + ix for ix in instr])
-
-    func = f"""
-template <>
-inline REAL quadrilateral_evaluate_scalar<{P}>(
-  const REAL eta0,
-  const REAL eta1,
-  const NekDouble * dofs
-){{
-{instr_str}
-  return {loop.generate_variable()};
-}}
-    """
-
-    print(func)
-    print(ops)
-
-    return func
-
-
-
-def quadrilateral_evaluate_vector(P, dofs, eta0, eta1):
-    jacobi0 = GenJacobi(eta0)
-    dir0 = eModified_A(P, eta0, jacobi0)
-    jacobi1 = GenJacobi(eta1)
-    dir1 = eModified_A(P, eta1, jacobi1)
-    dof_reader = DofReader(dofs, P * P)
-    loop = QuadrilateralEvaluate(P, dof_reader, dir0, dir1)
-    
-
-    blocks = [
-        jacobi0, dir0,
-        jacobi1, dir1,
-        dof_reader,
-        loop
-    ]
-    
-    t = "sycl::vec<REAL, VECTOR_LENGTH>"
-    instr, ops = generate_block(blocks, t)
-    instr_str = "\n".join(["  " + ix for ix in instr])
-
-    func = f"""
-template <>
-inline {t} quadrilateral_evaluate_vector<{P}>(
-  const {t} eta0,
-  const {t} eta1,
-  const NekDouble * dofs
-){{
-{instr_str}
-  return {loop.generate_variable()};
-}}
-    """
-
-    print(func)
-    print(ops)
-
-    return func
-
-
 
 
