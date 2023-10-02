@@ -1,4 +1,5 @@
 from sympy import *
+from remove_integer import *
 
 class GenJacobi:
     def __init__(self, z, sym="P"):
@@ -33,36 +34,36 @@ class GenJacobi:
             if p == 0:
                 v = Float(1.0)
             elif p == 1:
-                v = 0.5 * (2 * (alpha + 1) + (alpha + beta + 2) * (z - 1.0))
+                v = 0.5 * (2.0 * (alpha + 1.0) + (alpha + beta + 2.0) * (z - Float(1.0)))
             elif p == 2:
                 v = 0.125 * (
-                    4 * (alpha + 1) * (alpha + 2)
-                    + 4 * (alpha + beta + 3) * (alpha + 2) * (z - 1.0)
-                    + (alpha + beta + 3)
-                    * (alpha + beta + 4)
-                    * (z - 1.0)
-                    * (z - 1.0)
+                    Float(4.0 * (alpha + 1.0) * (alpha + 2.0))
+                    + Float(4.0 * (alpha + beta + 3.0) * (alpha + 2.0)) * (z - Float(1.0))
+                    + Float((alpha + beta + 3.0))
+                    * Float((alpha + beta + 4.0))
+                    * (z - Float(1.0))
+                    * (z - Float(1.0))
                 )
             else:
                 n = p - 1
                 pn = self.generate_variable(n, alpha, beta)
                 pnm1 = self.generate_variable(n - 1, alpha, beta)
                 coeff_pnp1 = (
-                    2
-                    * (n + 1)
-                    * (n + alpha + beta + 1)
-                    * (2 * n + alpha + beta)
+                    2.0
+                    * (n + 1.0)
+                    * (n + alpha + beta + 1.0)
+                    * (2.0 * n + alpha + beta)
                 )
-                coeff_pn = (2 * n + alpha + beta + 1) * (
+                coeff_pn = (2.0 * n + alpha + beta + 1.0) * (
                     alpha * alpha - beta * beta
                 ) + self._pochhammer(2 * n + alpha + beta, 3) * z
                 coeff_pnm1 = (
-                    -2.0 * (n + alpha) * (n + beta) * (2 * n + alpha + beta + 2)
+                    -2.0 * (n + alpha) * (n + beta) * (2.0 * n + alpha + beta + 2.0)
                 )
 
                 v = (1.0 / coeff_pnp1) * (coeff_pn * pn + coeff_pnm1 * pnm1)
 
-            g.append((s, v))
+            g.append((s, remove_integer(v)))
 
         return g
 

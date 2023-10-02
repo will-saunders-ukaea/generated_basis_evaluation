@@ -1,11 +1,24 @@
 from sympy import *
 import sympy.printing.c
 from sympy.codegen.rewriting import create_expand_pow_optimization
+from sympy.codegen.ast import *
+from sympy.printing.c import C99CodePrinter
+
+
+
+class C99RemoveIntLiterals(C99CodePrinter):
+    """
+    This should not be needed but the expand_pow optimisation refuses to work
+    properly with remove_integer.
+    """
+    def _print_Integer(self, flt):
+        return f"{flt}.0"
 
 def generate_statement(lhs, rhs, t):
 
     expand_pow = create_expand_pow_optimization(99)
-    expr = sympy.printing.c.ccode(expand_pow(rhs), standard="C99")
+    c_printer = C99RemoveIntLiterals()
+    expr = c_printer.doprint(expand_pow(rhs))
     stmt = f"{t} {lhs}({expr});"
     return stmt
 
@@ -19,7 +32,6 @@ def generate_block(components, t="REAL"):
     symbols_generator = numbered_symbols()
 
     ops = 0
-
     for gx in g:
         output_steps = [lx[0] for lx in gx]
         steps = [lx[1] for lx in gx]
