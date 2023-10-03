@@ -4,6 +4,7 @@ from sympy import *
 from basis_functions import *
 from generate_source import *
 from quadrilateral import *
+from hexahedron import *
 
 
 def header_name_evaluate(t):
@@ -24,7 +25,7 @@ if __name__ == "__main__":
 
     P = 8
 
-    types = (QuadrilateralEvaluate,)
+    types = (QuadrilateralEvaluate, HexahedronEvaluate)
 
     header_list = []
     cmake_include_list = []
