@@ -5,11 +5,14 @@ from jacobi import *
 from basis_functions import *
 
 class Quadrilateral:
+
+    namespace = "Quadrilateral"
+    helper_class = "ExpansionLooping::Quadrilateral"
+
     def __init__(self, P):
-        self.namespace = "Quadrilateral"
+
         self.P = P
         self.dofs = DofReader("dofs", self.total_num_modes())
-
         self.eta0 = symbols("eta0")
         self.eta1 = symbols("eta1")
         jacobi0 = GenJacobi(self.eta0)

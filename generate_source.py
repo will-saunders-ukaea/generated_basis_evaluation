@@ -126,6 +126,7 @@ def generate_vector_wrappers(P, geom_type):
     geom_inst0 = geom_type(0)
     namespace = geom_inst0.namespace
     shape_name = namespace.lower()
+    evaluation_type = geom_inst0.helper_class
 
     cases = []
     for px in range(2, P+1):
@@ -133,7 +134,6 @@ def generate_vector_wrappers(P, geom_type):
     case {px}:
       evaluate_vector<{px}>(
         sycl_target,
-        evaluation_type,
         particle_group, 
         sym,
         component,
@@ -148,16 +148,15 @@ def generate_vector_wrappers(P, geom_type):
     cases = "\n".join(cases)
 
     funcs = """
-
+#include <type_traits>
 namespace NESO::GeneratedEvaluation::%(NAMESPACE)s {
 
 
-template <size_t NUM_MODES, typename EVALUATE_TYPE, typename COMPONENT_TYPE>
+template <size_t NUM_MODES>
 inline void evaluate_vector(
     SYCLTargetSharedPtr sycl_target,
-    ExpansionLooping::JacobiExpansionLoopingInterface<EVALUATE_TYPE> evaluation_type,
     ParticleGroupSharedPtr particle_group, 
-    Sym<COMPONENT_TYPE> sym,
+    Sym<REAL> sym,
     const int component,
     std::map<ShapeType, int> &map_shape_to_count,
     const REAL * k_global_coeffs,
@@ -166,6 +165,7 @@ inline void evaluate_vector(
     EventStack &event_stack
   ) {
 
+  %(EVALUATION_TYPE)s evaluation_type{};
   const ShapeType shape_type = evaluation_type.get_shape_type();
   const int cells_iterset_size = map_shape_to_count.at(shape_type);
   if (cells_iterset_size == 0) {
@@ -200,8 +200,7 @@ inline void evaluate_vector(
 
             const INT layer_start = idx * NESO_VECTOR_LENGTH;
             const INT layer_end = std::min(INT(layer_start + NESO_VECTOR_LENGTH), INT(num_particles));
-            ExpansionLooping::JacobiExpansionLoopingInterface<EVALUATE_TYPE>
-                loop_type{};
+            %(EVALUATION_TYPE)s loop_type{};
             const int k_ndim = loop_type.get_ndim();
 
             REAL eta0_local[NESO_VECTOR_LENGTH];
@@ -261,14 +260,13 @@ inline void evaluate_vector(
   }
   return;
 }
-""" % {"NAMESPACE": namespace}
+""" % {"NAMESPACE": namespace, "EVALUATION_TYPE": evaluation_type}
 
     funcs += f"""
-template <typename EVALUATE_TYPE, typename COMPONENT_TYPE>
+template <typename COMPONENT_TYPE>
 inline bool vector_call_exists(
     const int num_modes,
     SYCLTargetSharedPtr sycl_target,
-    ExpansionLooping::JacobiExpansionLoopingInterface<EVALUATE_TYPE> evaluation_type,
     ParticleGroupSharedPtr particle_group, 
     Sym<COMPONENT_TYPE> sym,
     const int component,
@@ -278,6 +276,10 @@ inline bool vector_call_exists(
     const int * h_cells_iterset,
     EventStack &event_stack
   ) {{
+
+    if (!(std::is_same_v<COMPONENT_TYPE, REAL> == true)){{
+        return false;
+    }}
 
   if (
       (num_modes >= 2) && (num_modes <= {P})
