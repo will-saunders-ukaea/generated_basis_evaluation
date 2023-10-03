@@ -4,6 +4,7 @@ from dof_reader import *
 from jacobi import *
 from basis_functions import *
 
+
 class Quadrilateral:
 
     namespace = "Quadrilateral"
@@ -29,15 +30,16 @@ class Quadrilateral:
         return symbols(f"eval_{self.eta0}_{self.eta1}")
 
     def get_blocks(self):
-        return self.common + [self,]
+        return self.common + [
+            self,
+        ]
+
 
 class QuadrilateralEvaluate(Quadrilateral):
-
     def generate(self):
         ev = self.generate_variable()
-        g = [
-        ]
-        
+        g = []
+
         mode = 0
         tmps = []
         for qx in range(self.P):
@@ -45,13 +47,14 @@ class QuadrilateralEvaluate(Quadrilateral):
                 tmp_mode = symbols(f"eval_{self.eta0}_{self.eta1}_{mode}")
                 tmps.append(tmp_mode)
                 g.append(
-                    (tmp_mode, self.dofs.generate_variable(mode) * self.dir0.generate_variable(px) * self.dir1.generate_variable(qx))
+                    (
+                        tmp_mode,
+                        self.dofs.generate_variable(mode)
+                        * self.dir0.generate_variable(px)
+                        * self.dir1.generate_variable(qx),
+                    )
                 )
                 mode += 1
 
-        g.append(
-            (ev, functools.reduce(lambda x,y: x+y, tmps))
-        )
+        g.append((ev, functools.reduce(lambda x, y: x + y, tmps)))
         return g
-
-

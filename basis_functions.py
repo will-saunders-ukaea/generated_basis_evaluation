@@ -38,7 +38,7 @@ class eModified_B:
         self.jacobi = jacobi
         self._modA = eModified_A(P, z, jacobi)
         b0 = 0.5 * (1.0 - self.z)
-        self._pow = PowOptimiser(P-1, b0)
+        self._pow = PowOptimiser(P - 1, b0)
         self._g = self._modA.generate() + self._pow.generate() + self._generate()
 
     def generate_variable(self, p, q):
@@ -56,7 +56,14 @@ class eModified_B:
                 elif q == 0:
                     g.append((s, self._pow.generate_variable(p)))
                 else:
-                    g.append((s, self._pow.generate_variable(p) * b1 * self.jacobi(q - 1, 2 * p - 1, 1)))
+                    g.append(
+                        (
+                            s,
+                            self._pow.generate_variable(p)
+                            * b1
+                            * self.jacobi(q - 1, 2 * p - 1, 1),
+                        )
+                    )
         return g
 
     def generate(self):
@@ -80,8 +87,8 @@ class eModified_C:
                 for r in range(self.P - p - q):
                     g.append(
                         (
-                            self.generate_variable(p,q,r), 
-                            self._B.generate_variable(p+q, r)
+                            self.generate_variable(p, q, r),
+                            self._B.generate_variable(p + q, r),
                         )
                     )
         return g
@@ -97,7 +104,7 @@ class eModified_PyrC:
         self.jacobi = jacobi
         self._B = eModified_B(P, z, jacobi)
         b0 = 0.5 * (1.0 - self.z)
-        self._pow = PowOptimiser(2*P-1, b0)
+        self._pow = PowOptimiser(2 * P - 1, b0)
         self._g = self._B.generate() + self._generate()
 
     def generate_variable(self, p, q, r):
@@ -110,7 +117,7 @@ class eModified_PyrC:
         for p in range(self.P):
             for q in range(self.P):
                 for r in range(self.P - max(p, q)):
-                    lhs = self.generate_variable(p,q,r)
+                    lhs = self.generate_variable(p, q, r)
                     rhs = None
                     if p == 0:
                         rhs = self._B.generate_variable(q, r)
@@ -126,15 +133,16 @@ class eModified_PyrC:
                             if r == 0:
                                 rhs = self._pow.generate_variable(p + q - 2)
                             else:
-                                rhs = self._pow.generate_variable(p + q - 2) * b1 * self.jacobi.generate_variable(r - 1, 2 * p + 2 * q - 3, 1)
+                                rhs = (
+                                    self._pow.generate_variable(p + q - 2)
+                                    * b1
+                                    * self.jacobi.generate_variable(
+                                        r - 1, 2 * p + 2 * q - 3, 1
+                                    )
+                                )
 
                     assert rhs is not None
-                    g.append(
-                        (
-                            lhs, 
-                            rhs
-                        )
-                    )
+                    g.append((lhs, rhs))
         return g
 
     def generate(self):

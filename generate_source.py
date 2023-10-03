@@ -5,14 +5,15 @@ from sympy.codegen.ast import *
 from sympy.printing.c import C99CodePrinter
 
 
-
 class C99RemoveIntLiterals(C99CodePrinter):
     """
     This should not be needed but the expand_pow optimisation refuses to work
     properly with remove_integer.
     """
+
     def _print_Integer(self, flt):
         return f"{flt}.0"
+
 
 def generate_statement(lhs, rhs, t):
 
@@ -45,7 +46,7 @@ def generate_block(components, t="REAL"):
             e = generate_statement(lhs_v, rhs_v, t)
             ops += rhs_v.count_ops()
             instr.append(e)
-    
+
     return instr, ops
 
 
@@ -84,12 +85,12 @@ inline int flop_count(){{
 }}
     """
 
-    for px in range(2, P+1):
+    for px in range(2, P + 1):
 
         geom_inst = geom_type(px)
         instr, ops = generate_block(geom_inst.get_blocks(), t)
         instr_str = "\n".join(["  " + ix for ix in instr])
-        
+
         func = f"""
 /**
  * TODO
@@ -129,8 +130,9 @@ def generate_vector_wrappers(P, geom_type):
     evaluation_type = geom_inst0.helper_class
 
     cases = []
-    for px in range(2, P+1):
-        cases.append(f"""
+    for px in range(2, P + 1):
+        cases.append(
+            f"""
     case {px}:
       evaluate_vector<{px}>(
         sycl_target,
@@ -143,8 +145,9 @@ def generate_vector_wrappers(P, geom_type):
         h_cells_iterset,
         event_stack
       );
-      return true;""")
-    
+      return true;"""
+        )
+
     cases = "\n".join(cases)
 
     funcs = """
@@ -260,7 +263,10 @@ inline void evaluate_vector(
   }
   return;
 }
-""" % {"NAMESPACE": namespace, "EVALUATION_TYPE": evaluation_type}
+""" % {
+        "NAMESPACE": namespace,
+        "EVALUATION_TYPE": evaluation_type,
+    }
 
     funcs += f"""
 template <typename COMPONENT_TYPE>
@@ -299,22 +305,3 @@ inline bool vector_call_exists(
     funcs += f"}} // namespace NESO::GeneratedEvaluation::{namespace}\n"
     funcs = eval_sources + funcs
     return funcs
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

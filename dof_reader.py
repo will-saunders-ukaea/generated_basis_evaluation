@@ -1,5 +1,6 @@
 from sympy import *
 
+
 class DofReader:
     def __init__(self, sym, max_index):
         self.sym = MatrixSymbol(sym, 1, max_index)
@@ -17,5 +18,3 @@ class DofReader:
         for ix in range(self.max_index):
             g.append((self.generate_variable(ix), self.sym[ix]))
         return g
-
-

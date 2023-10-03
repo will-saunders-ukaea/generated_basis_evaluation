@@ -1,5 +1,6 @@
 from sympy import *
 
+
 class PowOptimiser:
     _idx = 0
 
@@ -10,7 +11,7 @@ class PowOptimiser:
         self._base = symbols(self._base_name)
         PowOptimiser._idx += 1
         self._g = self._generate()
-    
+
     def generate_variable(self, p):
         assert p >= 0
         assert p <= self.P
@@ -20,14 +21,12 @@ class PowOptimiser:
         return self._g
 
     def _generate(self):
-        g = [
-            (self._base, self.z),
-            (self.generate_variable(0), RealNumber(1.0))
-        ]
+        g = [(self._base, self.z), (self.generate_variable(0), RealNumber(1.0))]
         for px in range(1, self.P + 1):
             g.append(
-                (self.generate_variable(px), self._base * self.generate_variable(px-1))
+                (
+                    self.generate_variable(px),
+                    self._base * self.generate_variable(px - 1),
+                )
             )
         return g
-
-

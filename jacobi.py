@@ -1,6 +1,7 @@
 from sympy import *
 from remove_integer import *
 
+
 class GenJacobi:
     def __init__(self, z, sym="P"):
         self.z = z
@@ -34,11 +35,14 @@ class GenJacobi:
             if p == 0:
                 v = Float(1.0)
             elif p == 1:
-                v = 0.5 * (2.0 * (alpha + 1.0) + (alpha + beta + 2.0) * (z - Float(1.0)))
+                v = 0.5 * (
+                    2.0 * (alpha + 1.0) + (alpha + beta + 2.0) * (z - Float(1.0))
+                )
             elif p == 2:
                 v = 0.125 * (
                     Float(4.0 * (alpha + 1.0) * (alpha + 2.0))
-                    + Float(4.0 * (alpha + beta + 3.0) * (alpha + 2.0)) * (z - Float(1.0))
+                    + Float(4.0 * (alpha + beta + 3.0) * (alpha + 2.0))
+                    * (z - Float(1.0))
                     + Float((alpha + beta + 3.0))
                     * Float((alpha + beta + 4.0))
                     * (z - Float(1.0))
@@ -87,6 +91,3 @@ class GenJacobi:
             beta = abx[0][1]
             g += self._generate_to_order(n_max, alpha, beta)
         return g
-
-
-
