@@ -39,7 +39,7 @@ class eModified_B:
         self._modA = eModified_A(P, z, jacobi)
         b0 = 0.5 * (1.0 - self.z)
         self._pow = PowOptimiser(P - 1, b0)
-        self._g = self._modA.generate() + self._pow.generate() + self._generate()
+        self._g = self._pow.generate() + self._modA.generate() + self._generate()
 
     def generate_variable(self, p, q):
         return symbols(f"modB_{p}_{q}_{self.z}")
@@ -105,7 +105,7 @@ class eModified_PyrC:
         self._B = eModified_B(P, z, jacobi)
         b0 = 0.5 * (1.0 - self.z)
         self._pow = PowOptimiser(2 * P - 1, b0)
-        self._g = self._B.generate() + self._generate()
+        self._g = self._pow.generate() + self._B.generate() + self._generate()
 
     def generate_variable(self, p, q, r):
         return symbols(f"modPyrC_{p}_{q}_{r}_{self.z}")

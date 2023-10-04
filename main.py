@@ -17,6 +17,14 @@ def header_name_evaluate(t):
 
 if __name__ == "__main__":
 
+    eta1 = symbols("eta1")
+    jacobi1 = GenJacobi(eta1)
+    dir1 = eModified_B(4, eta1, jacobi1)
+    src, _ = generate_block((jacobi1, dir1))
+
+    src = "\n".join(src)
+    print(src)
+
     dir_include = os.path.join(sys.argv[1], "include")
     dir_include_gen_dir = os.path.join(
         dir_include, "nektar_interface", "expansion_looping", "generated"

@@ -3,6 +3,7 @@ import sympy.printing.c
 from sympy.codegen.rewriting import create_expand_pow_optimization
 from sympy.codegen.ast import *
 from sympy.printing.c import C99CodePrinter
+from functools import cmp_to_key, total_ordering
 
 
 class C99RemoveIntLiterals(C99CodePrinter):
@@ -24,7 +25,32 @@ def generate_statement(lhs, rhs, t):
     return stmt
 
 
+def sort_exprs(output_list, cse_list):
+    # assume the output_list and cse_list are each individually sorted.
+
+    cse_lhs = [cx[0] for cx in cse_list[0]]
+    lhs_list = cse_lhs + output_list
+    rhs_list = [cx[1] for cx in cse_list[0]] + cse_list[1]
+    map_assigns = dict(zip(lhs_list, rhs_list))
+
+    max_dep_index = 0
+    v = [ox for ox in output_list]
+    while len(cse_lhs) > 0:
+        cx = cse_lhs.pop(0)
+        cexpr = map_assigns[cx]
+        catoms = cexpr.atoms()
+        for ax in catoms:
+            if ax in v:
+                max_dep_index = max(max_dep_index, v.index(ax) + 1)
+        v.insert(max_dep_index, cx)
+        max_dep_index += 1
+
+    rr = [(vv, map_assigns[vv]) for vv in v]
+    return rr
+
+
 def generate_block(components, t="REAL"):
+
     g = []
     for cx in components:
         g.append(cx.generate())
@@ -37,6 +63,14 @@ def generate_block(components, t="REAL"):
         output_steps = [lx[0] for lx in gx]
         steps = [lx[1] for lx in gx]
         cse_list = cse(steps, symbols=symbols_generator, optimizations="basic")
+
+        sorted_exprs = sort_exprs(output_steps, cse_list)
+        for lhs, rhs in sorted_exprs:
+            e = generate_statement(lhs, rhs, t)
+            ops += rhs.count_ops()
+            instr.append(e)
+
+        """
         for cse_expr in cse_list[0]:
             lhs = cse_expr[0]
             ops += cse_expr[1].count_ops()
@@ -46,6 +80,7 @@ def generate_block(components, t="REAL"):
             e = generate_statement(lhs_v, rhs_v, t)
             ops += rhs_v.count_ops()
             instr.append(e)
+        """
 
     return instr, ops
 
