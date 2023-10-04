@@ -5,19 +5,19 @@ from jacobi import *
 from basis_functions import *
 
 
-class Quadrilateral:
+class Triangle:
     """
-    Base class for Quadrilateral implementations.
+    Base class for Triangle implementations.
     """
 
-    namespace = "Quadrilateral"
-    helper_class = "ExpansionLooping::Quadrilateral"
+    namespace = "Triangle"
+    helper_class = "ExpansionLooping::Triangle"
     ndim = 2
 
     def __init__(self, P):
         """
         Create a class to operate with expansions of a certain order over a
-        Quadrilateral.
+        Triangle.
 
         :param P: The number of modes used by an expansion over this geometry
                   object.
@@ -30,7 +30,7 @@ class Quadrilateral:
         jacobi0 = GenJacobi(self._eta0)
         jacobi1 = GenJacobi(self._eta1)
         self._dir0 = eModified_A(P, self._eta0, jacobi0)
-        self._dir1 = eModified_A(P, self._eta1, jacobi1)
+        self._dir1 = eModified_B(P, self._eta1, jacobi1)
         self._common = [jacobi0, self._dir0, jacobi1, self._dir1, self._dofs]
         self._g = self._generate()
 
@@ -56,9 +56,9 @@ class Quadrilateral:
         ]
 
 
-class QuadrilateralEvaluate(Quadrilateral):
+class TriangleEvaluate(Triangle):
     """
-    Implementation to evaluate expansions over a Quadrilateral.
+    Implementation to evaluate expansions over a Triangle.
     """
 
     def generate_variable(self):
@@ -73,24 +73,25 @@ class QuadrilateralEvaluate(Quadrilateral):
 
         :returns: List of (lhs, rhs) variables and expressions.
         """
-
         ev = self.generate_variable()
         g = []
 
         mode = 0
         tmps = []
-        for qx in range(self.P):
-            for px in range(self.P):
+        for px in range(self.P):
+            for qx in range(self.P - px):
                 tmp_mode = symbols(f"eval_{self._eta0}_{self._eta1}_{mode}")
                 tmps.append(tmp_mode)
-                g.append(
-                    (
-                        tmp_mode,
-                        self._dofs.generate_variable(mode)
-                        * self._dir0.generate_variable(px)
-                        * self._dir1.generate_variable(qx),
-                    )
+
+                d1 = self._dofs.generate_variable(mode) * self._dir1.generate_variable(
+                    px, qx
                 )
+                if mode == 1:
+                    rhs = d1
+                else:
+                    rhs = d1 * self._dir0.generate_variable(px)
+
+                g.append((tmp_mode, rhs))
                 mode += 1
 
         g.append((ev, functools.reduce(lambda x, y: x + y, tmps)))

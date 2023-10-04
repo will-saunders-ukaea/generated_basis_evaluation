@@ -52,10 +52,9 @@ def generate_block(components, t="REAL"):
 
 def generate_evaluate(P, geom_type, t):
 
-    geom_inst0 = geom_type(0)
-    namespace = geom_inst0.namespace
+    namespace = geom_type.namespace
     shape_name = namespace.lower()
-    third_coord = f"\nconst {t} eta2," if geom_inst0.ndim == 3 else ""
+    third_coord = f"\nconst {t} eta2," if geom_type.ndim == 3 else ""
 
     funcs = f"""namespace NESO::GeneratedEvaluation::{namespace} {{
 
@@ -124,10 +123,9 @@ inline {t} evaluate<{px}>(
 def generate_vector_wrappers(P, geom_type):
     t = "sycl::vec<REAL, NESO_VECTOR_LENGTH>"
     eval_sources = generate_evaluate(P, geom_type, t)
-    geom_inst0 = geom_type(0)
-    namespace = geom_inst0.namespace
+    namespace = geom_type.namespace
     shape_name = namespace.lower()
-    evaluation_type = geom_inst0.helper_class
+    evaluation_type = geom_type.helper_class
 
     cases = []
     for px in range(2, P + 1):
