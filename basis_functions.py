@@ -136,9 +136,7 @@ class eModified_PyrC:
                                 rhs = (
                                     self._pow.generate_variable(p + q - 2)
                                     * b1
-                                    * self.jacobi.generate_variable(
-                                        r - 1, 2 * p + 2 * q - 3, 1
-                                    )
+                                    * self.jacobi(r - 1, 2 * p + 2 * q - 3, 1)
                                 )
 
                     assert rhs is not None
