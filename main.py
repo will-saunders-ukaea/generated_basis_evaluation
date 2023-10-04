@@ -7,6 +7,8 @@ from quadrilateral import *
 from hexahedron import *
 from triangle import *
 from prism import *
+from tetrahedron import *
+from pyramid import *
 
 
 def header_name_evaluate(t):
@@ -27,7 +29,14 @@ if __name__ == "__main__":
 
     P = 4
 
-    types = (QuadrilateralEvaluate, TriangleEvaluate, HexahedronEvaluate, PrismEvaluate)
+    types = (
+        QuadrilateralEvaluate,
+        TriangleEvaluate,
+        HexahedronEvaluate,
+        PrismEvaluate,
+        TetrahedronEvaluate,
+        PyramidEvaluate,
+    )
 
     header_list = []
     cmake_include_list = []
