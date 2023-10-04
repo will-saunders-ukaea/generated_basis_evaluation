@@ -6,6 +6,7 @@ from generate_source import *
 from quadrilateral import *
 from hexahedron import *
 from triangle import *
+from prism import *
 
 
 def header_name_evaluate(t):
@@ -24,9 +25,9 @@ if __name__ == "__main__":
     if not os.path.exists(dir_include_gen_dir):
         os.makedirs(dir_include_gen_dir)
 
-    P = 8
+    P = 4
 
-    types = (QuadrilateralEvaluate, TriangleEvaluate, HexahedronEvaluate)
+    types = (QuadrilateralEvaluate, TriangleEvaluate, HexahedronEvaluate, PrismEvaluate)
 
     header_list = []
     cmake_include_list = []

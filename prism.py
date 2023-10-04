@@ -5,33 +5,45 @@ from jacobi import *
 from basis_functions import *
 
 
-class Triangle:
+class Prism:
     """
-    Base class for Triangle implementations.
+    Base class for Prism implementations.
     """
 
-    namespace = "Triangle"
-    helper_class = "ExpansionLooping::Triangle"
-    ndim = 2
+    namespace = "Prism"
+    helper_class = "ExpansionLooping::Prism"
+    ndim = 3
 
     def __init__(self, P):
         """
         Create a class to operate with expansions of a certain order over a
-        Triangle.
+        Prism.
 
         :param P: The number of modes used by an expansion over this geometry
                   object.
         """
+
         """Number of modes in the expansion."""
         self.P = P
         self._dofs = DofReader("dofs", self.total_num_modes())
         self._eta0 = symbols("eta0")
         self._eta1 = symbols("eta1")
+        self._eta2 = symbols("eta2")
         jacobi0 = GenJacobi(self._eta0)
         jacobi1 = GenJacobi(self._eta1)
+        jacobi2 = GenJacobi(self._eta2)
         self._dir0 = eModified_A(P, self._eta0, jacobi0)
-        self._dir1 = eModified_B(P, self._eta1, jacobi1)
-        self._common = [jacobi0, self._dir0, jacobi1, self._dir1, self._dofs]
+        self._dir1 = eModified_A(P, self._eta1, jacobi1)
+        self._dir2 = eModified_B(P, self._eta2, jacobi2)
+        self._common = [
+            jacobi0,
+            self._dir0,
+            jacobi1,
+            self._dir1,
+            jacobi2,
+            self._dir2,
+            self._dofs,
+        ]
         self._g = self._generate()
 
     def generate(self):
@@ -47,8 +59,9 @@ class Triangle:
         """
         mode = 0
         for px in range(self.P):
-            for qx in range(self.P - px):
-                mode += 1
+            for qx in range(self.P):
+                for rx in range(self.P - px):
+                    mode += 1
         return mode
 
     def get_blocks(self):
@@ -60,16 +73,16 @@ class Triangle:
         ]
 
 
-class TriangleEvaluate(Triangle):
+class PrismEvaluate(Prism):
     """
-    Implementation to evaluate expansions over a Triangle.
+    Implementation to evaluate expansions over a Prism.
     """
 
     def generate_variable(self):
         """
         :returns: The symbol the evaluation will be stored on.
         """
-        return symbols(f"eval_{self._eta0}_{self._eta1}")
+        return symbols(f"eval_{self._eta0}_{self._eta1}_{self._eta2}")
 
     def _generate(self):
         """
@@ -77,26 +90,32 @@ class TriangleEvaluate(Triangle):
 
         :returns: List of (lhs, rhs) variables and expressions.
         """
+
         ev = self.generate_variable()
         g = []
 
         mode = 0
         tmps = []
+
         for px in range(self.P):
-            for qx in range(self.P - px):
-                tmp_mode = symbols(f"eval_{self._eta0}_{self._eta1}_{mode}")
-                tmps.append(tmp_mode)
+            for qx in range(self.P):
+                for rx in range(self.P - px):
+                    tmp_mode = symbols(
+                        f"eval_{self._eta0}_{self._eta1}_{self._eta2}_{mode}"
+                    )
+                    tmps.append(tmp_mode)
 
-                d1 = self._dofs.generate_variable(mode) * self._dir1.generate_variable(
-                    px, qx
-                )
-                if mode == 1:
-                    rhs = d1
-                else:
-                    rhs = d1 * self._dir0.generate_variable(px)
+                    c12 = (
+                        self._dofs.generate_variable(mode)
+                        * self._dir1.generate_variable(qx)
+                        * self._dir2.generate_variable(px, rx)
+                    )
 
-                g.append((tmp_mode, rhs))
-                mode += 1
+                    if not ((px == 0) and (rx == 1)):
+                        c12 *= self._dir0.generate_variable(px)
+
+                    g.append((tmp_mode, c12))
+                    mode += 1
 
         g.append((ev, functools.reduce(lambda x, y: x + y, tmps)))
         return g

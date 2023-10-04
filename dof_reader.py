@@ -8,6 +8,8 @@ class DofReader:
         self._g = self._generate()
 
     def generate_variable(self, ix):
+        assert ix >= 0
+        assert ix < self.max_index
         return symbols(f"dof_{ix}")
 
     def generate(self):
