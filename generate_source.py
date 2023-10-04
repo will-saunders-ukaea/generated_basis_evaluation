@@ -161,6 +161,7 @@ def generate_vector_wrappers(P, geom_type):
     namespace = geom_type.namespace
     shape_name = namespace.lower()
     evaluation_type = geom_type.helper_class
+    ndim = geom_type.ndim
 
     cases = []
     for px in range(2, P + 1):
@@ -182,6 +183,79 @@ def generate_vector_wrappers(P, geom_type):
         )
 
     cases = "\n".join(cases)
+
+    if ndim == 2:
+        mid_kernel = """
+            REAL eta0_local[NESO_VECTOR_LENGTH];
+            REAL eta1_local[NESO_VECTOR_LENGTH];
+            REAL eval_local[NESO_VECTOR_LENGTH];
+            for(int ix=0 ; ix<NESO_VECTOR_LENGTH ; ix++){
+              eta0_local[ix] = 0.0;
+              eta1_local[ix] = 0.0;
+              eval_local[ix] = 0.0;
+            }
+            int cx = 0;
+            for(int ix=layer_start ; ix<layer_end ; ix++){
+              REAL xi0, xi1, xi2, eta0, eta1, eta2;
+              xi0 = k_ref_positions[cellx][0][ix];
+              xi1 = k_ref_positions[cellx][1][ix];
+              loop_type.loc_coord_to_loc_collapsed(xi0, xi1, xi2, &eta0, &eta1,
+                                                   &eta2);
+              eta0_local[cx] = eta0;
+              eta1_local[cx] = eta1;
+              cx++;
+            }
+
+            sycl::local_ptr<const REAL> eta0_ptr(eta0_local);
+            sycl::local_ptr<const REAL> eta1_ptr(eta1_local);
+
+            sycl::vec<REAL, NESO_VECTOR_LENGTH> eta0, eta1, eta2;
+            eta0.load(0, eta0_ptr);
+            eta1.load(0, eta1_ptr);
+
+            const sycl::vec<REAL, NESO_VECTOR_LENGTH> eval = 
+              evaluate<NUM_MODES>(eta0, eta1, eta2, dofs);
+        """
+    elif ndim == 3:
+        mid_kernel = """
+            REAL eta0_local[NESO_VECTOR_LENGTH];
+            REAL eta1_local[NESO_VECTOR_LENGTH];
+            REAL eta2_local[NESO_VECTOR_LENGTH];
+            REAL eval_local[NESO_VECTOR_LENGTH];
+            for(int ix=0 ; ix<NESO_VECTOR_LENGTH ; ix++){
+              eta0_local[ix] = 0.0;
+              eta1_local[ix] = 0.0;
+              eta2_local[ix] = 0.0;
+              eval_local[ix] = 0.0;
+            }
+            int cx = 0;
+            for(int ix=layer_start ; ix<layer_end ; ix++){
+              REAL xi0, xi1, xi2, eta0, eta1, eta2;
+              xi0 = k_ref_positions[cellx][0][ix];
+              xi1 = k_ref_positions[cellx][1][ix];
+              xi2 = k_ref_positions[cellx][2][ix];
+              loop_type.loc_coord_to_loc_collapsed(xi0, xi1, xi2, &eta0, &eta1,
+                                                   &eta2);
+              eta0_local[cx] = eta0;
+              eta1_local[cx] = eta1;
+              eta2_local[cx] = eta2;
+              cx++;
+            }
+
+            sycl::local_ptr<const REAL> eta0_ptr(eta0_local);
+            sycl::local_ptr<const REAL> eta1_ptr(eta1_local);
+            sycl::local_ptr<const REAL> eta2_ptr(eta2_local);
+
+            sycl::vec<REAL, NESO_VECTOR_LENGTH> eta0, eta1, eta2;
+            eta0.load(0, eta0_ptr);
+            eta1.load(0, eta1_ptr);
+            eta2.load(0, eta2_ptr);
+
+            const sycl::vec<REAL, NESO_VECTOR_LENGTH> eval = 
+              evaluate<NUM_MODES>(eta0, eta1, eta2, dofs);
+        """
+    else:
+        raise RuntimeError("Dimension not implemented")
 
     funcs = """
 #include <type_traits>
@@ -237,49 +311,7 @@ inline void evaluate_vector(
             const INT layer_start = idx * NESO_VECTOR_LENGTH;
             const INT layer_end = std::min(INT(layer_start + NESO_VECTOR_LENGTH), INT(num_particles));
             %(EVALUATION_TYPE)s loop_type{};
-            const int k_ndim = loop_type.get_ndim();
-
-            REAL eta0_local[NESO_VECTOR_LENGTH];
-            REAL eta1_local[NESO_VECTOR_LENGTH];
-            REAL eta2_local[NESO_VECTOR_LENGTH];
-            REAL eval_local[NESO_VECTOR_LENGTH];
-            for(int ix=0 ; ix<NESO_VECTOR_LENGTH ; ix++){
-              eta0_local[ix] = 0.0;
-              eta1_local[ix] = 0.0;
-              eta2_local[ix] = 0.0;
-              eval_local[ix] = 0.0;
-            }
-            int cx = 0;
-            for(int ix=layer_start ; ix<layer_end ; ix++){
-
-              REAL xi0, xi1, xi2, eta0, eta1, eta2;
-              xi0 = k_ref_positions[cellx][0][ix];
-              if (k_ndim > 1) {
-                xi1 = k_ref_positions[cellx][1][ix];
-              }
-              if (k_ndim > 2) {
-                xi2 = k_ref_positions[cellx][2][ix];
-              }
-              loop_type.loc_coord_to_loc_collapsed(xi0, xi1, xi2, &eta0, &eta1,
-                                                   &eta2);
-              eta0_local[cx] = eta0;
-              eta1_local[cx] = eta1;
-              eta2_local[cx] = eta2;
-              cx++;
-            }
-
-            sycl::local_ptr<const REAL> eta0_ptr(eta0_local);
-            sycl::local_ptr<const REAL> eta1_ptr(eta1_local);
-            sycl::local_ptr<const REAL> eta2_ptr(eta2_local);
-
-            sycl::vec<REAL, NESO_VECTOR_LENGTH> eta0, eta1, eta2;
-            eta0.load(0, eta0_ptr);
-            eta1.load(0, eta1_ptr);
-            eta2.load(0, eta2_ptr);
-
-            const sycl::vec<REAL, NESO_VECTOR_LENGTH> eval = 
-              evaluate<NUM_MODES>(eta0, eta1, eta2, dofs);
-
+            %(MID_KERNEL)s
             sycl::local_ptr<REAL> eval_ptr(eval_local);
             eval.store(0, eval_ptr);
 
@@ -299,6 +331,7 @@ inline void evaluate_vector(
 """ % {
         "NAMESPACE": namespace,
         "EVALUATION_TYPE": evaluation_type,
+        "MID_KERNEL": mid_kernel,
     }
 
     funcs += f"""
