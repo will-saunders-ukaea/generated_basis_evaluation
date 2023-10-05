@@ -85,6 +85,8 @@ def generate_block(components, t="REAL"):
     return instr, ops
 
 
+
+
 def generate_evaluate(P, geom_type, t):
 
     namespace = geom_type.namespace
@@ -155,34 +157,19 @@ inline {t} evaluate<{px}>(
     return funcs
 
 
-def generate_vector_wrappers(P, geom_type):
+
+def generate_template_specialisation(p, geom_type, t):
     t = "sycl::vec<REAL, NESO_VECTOR_LENGTH>"
-    eval_sources = generate_evaluate(P, geom_type, t)
+    eval_sources = generate_evaluate(p, geom_type, t)
     namespace = geom_type.namespace
     shape_name = namespace.lower()
     evaluation_type = geom_type.helper_class
     ndim = geom_type.ndim
-
-    cases = []
-    for px in range(2, P + 1):
-        cases.append(
-            f"""
-    case {px}:
-      evaluate_vector<{px}>(
-        sycl_target,
-        particle_group, 
-        sym,
-        component,
-        map_shape_to_count,
-        k_global_coeffs,
-        h_coeffs_offsets,
-        h_cells_iterset,
-        event_stack
-      );
-      return true;"""
-        )
-
-    cases = "\n".join(cases)
+    sub_dict = {
+        "NAMESPACE": namespace,
+        "EVALUATION_TYPE": evaluation_type,
+        "PX": p,
+    }
 
     if ndim == 2:
         mid_kernel = """
@@ -214,8 +201,8 @@ def generate_vector_wrappers(P, geom_type):
             eta1.load(0, eta1_ptr);
 
             const sycl::vec<REAL, NESO_VECTOR_LENGTH> eval = 
-              evaluate<NUM_MODES>(eta0, eta1, eta2, dofs);
-        """
+              evaluate<%(PX)s>(eta0, eta1, eta2, dofs);
+        """ % sub_dict
     elif ndim == 3:
         mid_kernel = """
             REAL eta0_local[NESO_VECTOR_LENGTH];
@@ -252,18 +239,20 @@ def generate_vector_wrappers(P, geom_type):
             eta2.load(0, eta2_ptr);
 
             const sycl::vec<REAL, NESO_VECTOR_LENGTH> eval = 
-              evaluate<NUM_MODES>(eta0, eta1, eta2, dofs);
-        """
+              evaluate<%(PX)s>(eta0, eta1, eta2, dofs);
+        """ % sub_dict
     else:
         raise RuntimeError("Dimension not implemented")
 
+    sub_dict.update({
+        "MID_KERNEL": mid_kernel,
+    })
+
     funcs = """
-#include <type_traits>
 namespace NESO::GeneratedEvaluation::%(NAMESPACE)s {
 
-
-template <size_t NUM_MODES>
-inline void evaluate_vector(
+template <>
+void evaluate_vector<%(PX)s>(
     SYCLTargetSharedPtr sycl_target,
     ParticleGroupSharedPtr particle_group, 
     Sym<REAL> sym,
@@ -328,11 +317,92 @@ inline void evaluate_vector(
   }
   return;
 }
-""" % {
-        "NAMESPACE": namespace,
-        "EVALUATION_TYPE": evaluation_type,
-        "MID_KERNEL": mid_kernel,
-    }
+""" % sub_dict
+    funcs += f"}} // namespace NESO::GeneratedEvaluation::{namespace}"
+    
+    return funcs
+
+
+def generate_vector_sources(P, geom_type):
+    t = "sycl::vec<REAL, NESO_VECTOR_LENGTH>"
+    sources = []
+    for px in range(2, P+1):
+        src = generate_template_specialisation(px, geom_type, t)
+        sources.append(
+            (px, src)
+        )
+    return sources
+
+
+def generate_vector_wrappers(P, geom_type, headers=[]):
+    t = "sycl::vec<REAL, NESO_VECTOR_LENGTH>"
+    eval_sources = generate_evaluate(P, geom_type, t)
+    namespace = geom_type.namespace
+    shape_name = namespace.lower()
+    evaluation_type = geom_type.helper_class
+    ndim = geom_type.ndim
+
+    cases = []
+    for px in range(2, P + 1):
+        cases.append(
+            f"""
+    case {px}:
+      evaluate_vector<{px}>(
+        sycl_target,
+        particle_group, 
+        sym,
+        component,
+        map_shape_to_count,
+        k_global_coeffs,
+        h_coeffs_offsets,
+        h_cells_iterset,
+        event_stack
+      );
+      return true;"""
+        )
+
+    cases = "\n".join(cases)
+    
+    specs = []
+    for px in range(2, P+1):
+        specs.append(f"""
+template <>
+void evaluate_vector<{px}>(
+    SYCLTargetSharedPtr sycl_target,
+    ParticleGroupSharedPtr particle_group, 
+    Sym<REAL> sym,
+    const int component,
+    std::map<ShapeType, int> &map_shape_to_count,
+    const REAL * k_global_coeffs,
+    const int * h_coeffs_offsets,
+    const int * h_cells_iterset,
+    EventStack &event_stack
+  );
+""")
+
+    specs = "\n".join(specs)
+
+
+    funcs = f"""
+
+namespace NESO::GeneratedEvaluation::{namespace} {{
+
+    template <size_t NUM_MODES>
+    void evaluate_vector(
+        SYCLTargetSharedPtr sycl_target,
+        ParticleGroupSharedPtr particle_group, 
+        Sym<REAL> sym,
+        const int component,
+        std::map<ShapeType, int> &map_shape_to_count,
+        const REAL * k_global_coeffs,
+        const int * h_coeffs_offsets,
+        const int * h_cells_iterset,
+        EventStack &event_stack
+      );
+    
+    {specs}
+
+    """
 
     funcs += f"""
 template <typename COMPONENT_TYPE>
@@ -367,7 +437,15 @@ inline bool vector_call_exists(
   }}
 }}
 """
+    header_init = "\n".join(["#include " + hx for hx in headers]) + """
+#include <neso_particles.hpp>
+using namespace NESO::Particles;
+#include <CL/sycl.hpp>
+#include <type_traits>
+#include <SpatialDomains/MeshGraph.h>
+using namespace Nektar::LibUtilities;
+    """
 
     funcs += f"}} // namespace NESO::GeneratedEvaluation::{namespace}\n"
-    funcs = eval_sources + funcs
+    funcs = header_init + eval_sources + funcs
     return funcs

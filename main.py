@@ -15,27 +15,32 @@ def header_name_evaluate(t):
     return f"evaluate_{t.namespace.lower()}.hpp"
 
 
+def source_name_evaluate(t, p):
+    return f"evaluate_{t.namespace.lower()}_{p}.cpp"
+
+
 if __name__ == "__main__":
-
-    eta1 = symbols("eta1")
-    jacobi1 = GenJacobi(eta1)
-    dir1 = eModified_B(4, eta1, jacobi1)
-    src, _ = generate_block((jacobi1, dir1))
-
-    src = "\n".join(src)
-    print(src)
 
     dir_include = os.path.join(sys.argv[1], "include")
     dir_include_gen_dir = os.path.join(
         dir_include, "nektar_interface", "expansion_looping", "generated"
     )
+    dir_src = os.path.join(sys.argv[1], "src")
+    dir_src_gen_dir = os.path.join(
+        dir_src, "nektar_interface", "expansion_looping", "generated"
+    )
     dir_include_cmake_dir = os.path.join(
         "${INC_DIR}", "nektar_interface", "expansion_looping", "generated"
     )
+    utility_sycl = "<nektar_interface/utility_sycl.hpp>"
+
+
     if not os.path.exists(dir_include_gen_dir):
         os.makedirs(dir_include_gen_dir)
+    if not os.path.exists(dir_src_gen_dir):
+        os.makedirs(dir_src_gen_dir)
 
-    P = 4
+    P = 8
 
     types = (
         QuadrilateralEvaluate,
@@ -54,7 +59,7 @@ if __name__ == "__main__":
         header_list.append(f'#include "{filename}"')
         cmake_include_list.append(os.path.join(dir_include_cmake_dir, filename))
 
-        eval_src = generate_vector_wrappers(P, tx)
+        eval_src = generate_vector_wrappers(P, tx, headers=(utility_sycl,))
         with open(os.path.join(dir_include_gen_dir, filename), "w+") as fh:
             fh.write(eval_src)
 
@@ -78,6 +83,22 @@ using namespace NESO::Particles;
     with open(wrapper_filename, "w+") as fh:
         fh.write(wrapper_header)
 
+    
+    # create the source files
+    src_files = []
+    for tx in types:
+        sources = generate_vector_sources(P, tx)
+        for px, sx in sources:
+            filename = source_name_evaluate(tx, px)
+            filepath = os.path.join(dir_src_gen_dir, filename)
+            src_files.append(f"${{SRC_DIR}}/{os.path.relpath(filepath, dir_src)}")
+
+            with open(filepath, "w+") as fh:
+                fh.write(f"#include <{os.path.relpath(wrapper_filename, dir_include)}>")
+                fh.write(sx)
+
+    cmake_src_list = "\n".join(src_files)
+
     dir_cmake = os.path.join(sys.argv[1], "cmake")
     if not os.path.exists(dir_cmake):
         os.makedirs(dir_cmake)
@@ -96,6 +117,15 @@ function(ADD_GENERATED_EVALUATION_INCLUDES)
 {cmake_include_list}
   )
   set (HEADER_FILES ${{HEADER_FILES}} PARENT_SCOPE)
+
+endfunction()
+
+function(ADD_GENERATED_EVALUATION_SOURCES)
+
+  list(APPEND LIB_SRC_FILES 
+{cmake_src_list}
+  )
+  set (LIB_SRC_FILES ${{LIB_SRC_FILES}} PARENT_SCOPE)
 
 endfunction()
 """
