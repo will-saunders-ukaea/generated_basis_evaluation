@@ -34,7 +34,6 @@ if __name__ == "__main__":
     )
     utility_sycl = "<nektar_interface/utility_sycl.hpp>"
 
-
     if not os.path.exists(dir_include_gen_dir):
         os.makedirs(dir_include_gen_dir)
     if not os.path.exists(dir_src_gen_dir):
@@ -83,7 +82,6 @@ using namespace NESO::Particles;
     with open(wrapper_filename, "w+") as fh:
         fh.write(wrapper_header)
 
-    
     # create the source files
     src_files = []
     for tx in types:
