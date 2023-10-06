@@ -85,6 +85,39 @@ def generate_block(components, t="REAL"):
     return instr, ops
 
 
+def generate_get_flop_count(P):
+
+    cases = []
+    for px in range(2, P + 1):
+        cases.append(
+            f"""
+        case {px}:
+            return flop_count<{px}>();
+            break;
+        """
+        )
+    cases = "\n".join(cases)
+
+    func = f"""
+/**
+ * Get the FLOP count for a single evaluation for a single particle for a given
+ * number of modes. 
+ * 
+ * @param p Number of modes.
+ * @returns FLOP count. -1 if the number of requested modes is outside the
+ * generated range.
+ */
+inline int get_flop_count(const int p){{
+    switch (p) {{
+{cases}
+        default:
+            return -1;
+    }}
+}}
+"""
+    return func
+
+
 def generate_evaluate(P, geom_type, t):
 
     namespace = geom_type.namespace
@@ -150,6 +183,7 @@ inline {t} evaluate<{px}>(
 """
         funcs += func
 
+    funcs += generate_get_flop_count(P)
     funcs += f"}} // namespace NESO::GeneratedEvaluation::{namespace}"
 
     return funcs
