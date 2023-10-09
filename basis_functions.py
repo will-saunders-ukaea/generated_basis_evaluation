@@ -1,6 +1,7 @@
 from sympy import *
 from jacobi import *
 from pow_optimiser import PowOptimiser
+from ast_base import *
 
 
 class eModified_A:

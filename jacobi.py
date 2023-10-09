@@ -1,5 +1,6 @@
 from sympy import *
 from remove_integer import *
+from ast_base import *
 
 
 class GenJacobi:

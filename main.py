@@ -3,6 +3,7 @@ import os
 from sympy import *
 from basis_functions import *
 from generate_source import *
+from generate_project_source import *
 from quadrilateral import *
 from hexahedron import *
 from triangle import *
@@ -13,6 +14,10 @@ from pyramid import *
 
 def header_name_evaluate(t):
     return f"evaluate_{t.namespace.lower()}.hpp"
+
+
+def header_name_project(t):
+    return f"project_{t.namespace.lower()}.hpp"
 
 
 def source_name_evaluate(t, p):
@@ -39,26 +44,45 @@ if __name__ == "__main__":
     if not os.path.exists(dir_src_gen_dir):
         os.makedirs(dir_src_gen_dir)
 
-    P = 8
+    P = 5
 
-    types = (
-        QuadrilateralEvaluate,
-        TriangleEvaluate,
+    types_evaluate = (
+        # QuadrilateralEvaluate,
+        # TriangleEvaluate,
         HexahedronEvaluate,
-        PrismEvaluate,
-        TetrahedronEvaluate,
-        PyramidEvaluate,
+        # PrismEvaluate,
+        # TetrahedronEvaluate,
+        # PyramidEvaluate,
+    )
+
+    types_project = (
+        # QuadrilateralEvaluate,
+        # TriangleEvaluate,
+        HexahedronProject,
+        # PrismEvaluate,
+        # TetrahedronEvaluate,
+        # PyramidEvaluate,
     )
 
     header_list = []
     cmake_include_list = []
 
-    for tx in types:
+    for tx in types_evaluate:
         filename = header_name_evaluate(tx)
         header_list.append(f'#include "{filename}"')
         cmake_include_list.append(os.path.join(dir_include_cmake_dir, filename))
 
         eval_src = generate_vector_wrappers(P, tx, headers=(utility_sycl,))
+        with open(os.path.join(dir_include_gen_dir, filename), "w+") as fh:
+            print(eval_src)
+            fh.write(eval_src)
+
+    for tx in types_project:
+        filename = header_name_project(tx)
+        header_list.append(f'#include "{filename}"')
+        cmake_include_list.append(os.path.join(dir_include_cmake_dir, filename))
+
+        eval_src = generate_project_wrappers(P, tx, headers=(utility_sycl,))
         with open(os.path.join(dir_include_gen_dir, filename), "w+") as fh:
             fh.write(eval_src)
 
@@ -84,7 +108,7 @@ using namespace NESO::Particles;
 
     # create the source files
     src_files = []
-    for tx in types:
+    for tx in types_evaluate:
         sources = generate_vector_sources(P, tx)
         for px, sx in sources:
             filename = source_name_evaluate(tx, px)

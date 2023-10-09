@@ -4,6 +4,7 @@ from sympy.codegen.rewriting import create_expand_pow_optimization
 from sympy.codegen.ast import *
 from sympy.printing.c import C99CodePrinter
 from functools import cmp_to_key, total_ordering
+from ast_base import *
 
 
 class C99RemoveIntLiterals(C99CodePrinter):
@@ -16,71 +17,101 @@ class C99RemoveIntLiterals(C99CodePrinter):
         return f"{flt}.0"
 
 
-def generate_statement(lhs, rhs, t):
+def contains_indexed(expr):
+    def walk(e):
+        c = False
+        if issubclass(type(e), Indexed):
+            c = True
+        args = e.args
+        for ax in args:
+            c = c or walk(ax)
+        return c
 
+    ci = walk(expr)
+    return ci
+
+
+def generate_statement(node, t):
+
+    lhs = node[0]
+    rhs = node[1]
+    preserve_ints = node.preserve_ints
     expand_pow = create_expand_pow_optimization(99)
-    c_printer = C99RemoveIntLiterals()
-    expr = c_printer.doprint(expand_pow(rhs))
-    stmt = f"{t} {lhs}({expr});"
+
+    rhs = expand_pow(rhs)
+    ci = contains_indexed(rhs) or node.preserve_ints
+    if ci:
+        c_printer = C99CodePrinter()
+    else:
+        c_printer = C99RemoveIntLiterals()
+
+    expr = c_printer.doprint(rhs)
+
+    if type(node) is Assign:
+        stmt = f"{lhs} = {expr};"
+    elif type(node) is Initialise:
+        if node.type is not None:
+            t = node.type
+        stmt = f"{t} {lhs}({expr});"
+    else:
+        raise RuntimeError("Unknown node type.")
+
     return stmt
 
 
-def sort_exprs(output_list, cse_list):
+def sort_exprs(rewrite_list, ast_cse_list):
     # assume the output_list and cse_list are each individually sorted.
 
-    cse_lhs = [cx[0] for cx in cse_list[0]]
-    lhs_list = cse_lhs + output_list
-    rhs_list = [cx[1] for cx in cse_list[0]] + cse_list[1]
-    map_assigns = dict(zip(lhs_list, rhs_list))
+    rr = [rx for rx in rewrite_list]
+    v = [ox[0] for ox in rewrite_list]
+    to_insert = [r for r in ast_cse_list]
 
     max_dep_index = 0
-    v = [ox for ox in output_list]
-    while len(cse_lhs) > 0:
-        cx = cse_lhs.pop(0)
-        cexpr = map_assigns[cx]
-        catoms = cexpr.atoms()
+    while len(to_insert) > 0:
+        cx = to_insert.pop(0)
+        catoms = cx[1].atoms()
         for ax in catoms:
             if ax in v:
                 max_dep_index = max(max_dep_index, v.index(ax) + 1)
-        v.insert(max_dep_index, cx)
+        v.insert(max_dep_index, cx[0])
+        rr.insert(max_dep_index, cx)
         max_dep_index += 1
 
-    rr = [(vv, map_assigns[vv]) for vv in v]
     return rr
+
+
+def pass_cse(expr_list, t):
+    output_steps = [lx[0] for lx in expr_list]
+    steps = [lx[1] for lx in expr_list]
+
+    symbols_generator = numbered_symbols()
+    cse_list = cse(steps, symbols=symbols_generator, optimizations="basic")
+
+    ast_cse_list = to_ast(t, cse_list[0])
+    rewrite_list = cse_list[1]
+    for ri, rx in enumerate(rewrite_list):
+        expr_list[ri][1] = rx
+    sorted_exprs = sort_exprs(expr_list, ast_cse_list)
+    return sorted_exprs
 
 
 def generate_block(components, t="REAL"):
 
     g = []
     for cx in components:
-        g.append(cx.generate())
+        cx_tmp = cx.generate()
+        cx_tmp = to_ast(t, cx_tmp)
+        g.append(cx_tmp)
 
     instr = []
-    symbols_generator = numbered_symbols()
-
     ops = 0
     for gx in g:
-        output_steps = [lx[0] for lx in gx]
-        steps = [lx[1] for lx in gx]
-        cse_list = cse(steps, symbols=symbols_generator, optimizations="basic")
-
-        sorted_exprs = sort_exprs(output_steps, cse_list)
-        for lhs, rhs in sorted_exprs:
-            e = generate_statement(lhs, rhs, t)
-            ops += rhs.count_ops()
+        sorted_exprs = pass_cse(gx, t)
+        for node in sorted_exprs:
+            e = generate_statement(node, t)
+            if node.count_ops:
+                ops += node[1].count_ops()
             instr.append(e)
-
-        """
-        for cse_expr in cse_list[0]:
-            lhs = cse_expr[0]
-            ops += cse_expr[1].count_ops()
-            e = generate_statement(lhs, cse_expr[1], t)
-            instr.append(e)
-        for lhs_v, rhs_v in zip(output_steps, cse_list[1]):
-            e = generate_statement(lhs_v, rhs_v, t)
-            ops += rhs_v.count_ops()
-            instr.append(e)
-        """
 
     return instr, ops
 
@@ -118,7 +149,7 @@ inline int get_flop_count(const int p){{
     return func
 
 
-def generate_evaluate(P, geom_type, t):
+def generate_evaluate(P, geom_type, t, constructor_assigns=False):
 
     namespace = geom_type.namespace
     shape_name = namespace.lower()
@@ -332,21 +363,28 @@ void evaluate_vector<%(PX)s>(
       const std::size_t num_blocks =
           static_cast<std::size_t>(div_mod.quot + (div_mod.rem == 0 ? 0 : 1));
 
+      const size_t ls = 128;
+      const size_t gs = get_global_size((std::size_t) num_blocks, ls);
+
       cgh.parallel_for<>(
-          sycl::range<1>(static_cast<size_t>(num_blocks)),
-          [=](sycl::id<1> idx) {
+          //sycl::range<1>(static_cast<size_t>(num_blocks)),
+          //[=](sycl::id<1> idx) {
+          sycl::nd_range<1>(sycl::range<1>(gs), sycl::range<1>(ls)),
+          [=](sycl::nd_item<1> nd_idx) {
+            const size_t idx = nd_idx.get_global_linear_id();
+            if (idx < num_blocks){
+              const INT layer_start = idx * NESO_VECTOR_LENGTH;
+              const INT layer_end = std::min(INT(layer_start + NESO_VECTOR_LENGTH), INT(num_particles));
+              %(EVALUATION_TYPE)s loop_type{};
+              %(MID_KERNEL)s
+              sycl::local_ptr<REAL> eval_ptr(eval_local);
+              eval.store(0, eval_ptr);
 
-            const INT layer_start = idx * NESO_VECTOR_LENGTH;
-            const INT layer_end = std::min(INT(layer_start + NESO_VECTOR_LENGTH), INT(num_particles));
-            %(EVALUATION_TYPE)s loop_type{};
-            %(MID_KERNEL)s
-            sycl::local_ptr<REAL> eval_ptr(eval_local);
-            eval.store(0, eval_ptr);
-
-            cx = 0;
-            for(int ix=layer_start ; ix<layer_end ; ix++){
-              k_output[cellx][k_component][ix] = eval_local[cx];
-              cx++;
+              cx = 0;
+              for(int ix=layer_start ; ix<layer_end ; ix++){
+                k_output[cellx][k_component][ix] = eval_local[cx];
+                cx++;
+              }
             }
           });
     });
@@ -375,7 +413,7 @@ def generate_vector_sources(P, geom_type):
 
 def generate_vector_wrappers(P, geom_type, headers=[]):
     t = "sycl::vec<REAL, NESO_VECTOR_LENGTH>"
-    eval_sources = generate_evaluate(P, geom_type, t)
+    eval_sources = generate_evaluate(P, geom_type, t, True)
     namespace = geom_type.namespace
     shape_name = namespace.lower()
     evaluation_type = geom_type.helper_class

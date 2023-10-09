@@ -4,6 +4,7 @@ from dof_reader import *
 from jacobi import *
 from basis_functions import *
 from evaluate_base import *
+from project_base import *
 
 
 class Hexahedron(ShapeBase):
@@ -81,6 +82,14 @@ class Hexahedron(ShapeBase):
 class HexahedronEvaluate(Hexahedron, EvaluateBase):
     """
     Implementation to evaluate expansions over a Hexahedron.
+    """
+
+    pass
+
+
+class HexahedronProject(Hexahedron, ProjectBase):
+    """
+    Implementation to project expansions over a Hexahedron.
     """
 
     pass
