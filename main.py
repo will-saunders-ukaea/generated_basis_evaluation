@@ -23,6 +23,9 @@ def header_name_project(t):
 def source_name_evaluate(t, p):
     return f"evaluate_{t.namespace.lower()}_{p}.cpp"
 
+def source_name_project(t, p):
+    return f"project_{t.namespace.lower()}_{p}.cpp"
+
 
 if __name__ == "__main__":
 
@@ -44,24 +47,24 @@ if __name__ == "__main__":
     if not os.path.exists(dir_src_gen_dir):
         os.makedirs(dir_src_gen_dir)
 
-    P = 5
+    P = 3
 
     types_evaluate = (
-        # QuadrilateralEvaluate,
-        # TriangleEvaluate,
+        QuadrilateralEvaluate,
+        TriangleEvaluate,
         HexahedronEvaluate,
-        # PrismEvaluate,
-        # TetrahedronEvaluate,
-        # PyramidEvaluate,
+        PrismEvaluate,
+        TetrahedronEvaluate,
+        PyramidEvaluate,
     )
 
     types_project = (
-        # QuadrilateralEvaluate,
-        # TriangleEvaluate,
+        QuadrilateralProject,
+        TriangleProject,
         HexahedronProject,
-        # PrismEvaluate,
-        # TetrahedronEvaluate,
-        # PyramidEvaluate,
+        PrismProject,
+        TetrahedronProject,
+        PyramidProject,
     )
 
     header_list = []
@@ -72,19 +75,18 @@ if __name__ == "__main__":
         header_list.append(f'#include "{filename}"')
         cmake_include_list.append(os.path.join(dir_include_cmake_dir, filename))
 
-        eval_src = generate_vector_wrappers(P, tx, headers=(utility_sycl,))
+        src = generate_vector_wrappers(P, tx, headers=(utility_sycl,))
         with open(os.path.join(dir_include_gen_dir, filename), "w+") as fh:
-            print(eval_src)
-            fh.write(eval_src)
+            fh.write(src)
 
     for tx in types_project:
         filename = header_name_project(tx)
         header_list.append(f'#include "{filename}"')
         cmake_include_list.append(os.path.join(dir_include_cmake_dir, filename))
 
-        eval_src = generate_project_wrappers(P, tx, headers=(utility_sycl,))
+        src = generate_project_wrappers(P, tx, headers=(utility_sycl,))
         with open(os.path.join(dir_include_gen_dir, filename), "w+") as fh:
-            fh.write(eval_src)
+            fh.write(src)
 
     header_list = "\n".join(header_list)
     wrapper_header = f"""
@@ -118,6 +120,19 @@ using namespace NESO::Particles;
             with open(filepath, "w+") as fh:
                 fh.write(f"#include <{os.path.relpath(wrapper_filename, dir_include)}>")
                 fh.write(sx)
+
+    for tx in types_project:
+        sources = generate_project_sources(P, tx)
+        for px, sx in sources:
+            filename = source_name_project(tx, px)
+            filepath = os.path.join(dir_src_gen_dir, filename)
+            src_files.append(f"${{SRC_DIR}}/{os.path.relpath(filepath, dir_src)}")
+
+            with open(filepath, "w+") as fh:
+                fh.write(f"#include <{os.path.relpath(wrapper_filename, dir_include)}>")
+                fh.write(sx)
+
+
 
     cmake_src_list = "\n".join(src_files)
 

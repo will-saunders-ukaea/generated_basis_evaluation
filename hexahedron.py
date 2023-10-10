@@ -27,7 +27,7 @@ class Hexahedron(ShapeBase):
 
         """Number of modes in the expansion."""
         self.P = P
-        self._dofs = DofReader("dofs", self.total_num_modes())
+        self._dofs = DofReader("dofs", self.total_num_modes(self.P))
         self._eta0 = symbols("eta0")
         self._eta1 = symbols("eta1")
         self._eta2 = symbols("eta2")
@@ -47,13 +47,15 @@ class Hexahedron(ShapeBase):
             self._dofs,
         ]
         self._g = self._generate()
-
-    def total_num_modes(self):
+    
+    @staticmethod
+    def total_num_modes(P):
         """
+        :param P: Number of modes in one dimension.
         :returns: The total number of modes (DOFs) touched by this expansion
         looping.
         """
-        return self.P * self.P * self.P
+        return P * P * P
 
     def _get_modes(self):
         """

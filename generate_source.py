@@ -80,11 +80,12 @@ def sort_exprs(rewrite_list, ast_cse_list):
     return rr
 
 
+symbols_generator = numbered_symbols()
+
 def pass_cse(expr_list, t):
     output_steps = [lx[0] for lx in expr_list]
     steps = [lx[1] for lx in expr_list]
 
-    symbols_generator = numbered_symbols()
     cse_list = cse(steps, symbols=symbols_generator, optimizations="basic")
 
     ast_cse_list = to_ast(t, cse_list[0])
@@ -220,9 +221,7 @@ inline {t} evaluate<{px}>(
     return funcs
 
 
-def generate_template_specialisation(p, geom_type, t):
-    t = "sycl::vec<REAL, NESO_VECTOR_LENGTH>"
-    eval_sources = generate_evaluate(p, geom_type, t)
+def generate_template_specialisation(p, geom_type, t = "sycl::vec<REAL, NESO_VECTOR_LENGTH>"):
     namespace = geom_type.namespace
     shape_name = namespace.lower()
     evaluation_type = geom_type.helper_class
@@ -335,7 +334,6 @@ void evaluate_vector<%(PX)s>(
     EventStack &event_stack
   ) {
 
-  %(EVALUATION_TYPE)s evaluation_type{};
   const int cells_iterset_size = shape_count;
   if (cells_iterset_size == 0) {
     return;
@@ -355,16 +353,17 @@ void evaluate_vector<%(PX)s>(
     const int dof_offset = h_coeffs_offsets[cellx];
     const REAL *dofs = k_global_coeffs + dof_offset;
 
+    const int num_particles = mpi_rank_dat->h_npart_cell[cellx]; 
+
+    const auto div_mod =
+        std::div(static_cast<long long>(num_particles), static_cast<long long>(NESO_VECTOR_LENGTH));
+    const std::size_t num_blocks =
+        static_cast<std::size_t>(div_mod.quot + (div_mod.rem == 0 ? 0 : 1));
+
+    const size_t ls = 128;
+    const size_t gs = get_global_size((std::size_t) num_blocks, ls);
+
     auto event_loop = sycl_target->queue.submit([&](sycl::handler &cgh) {
-      const int num_particles = mpi_rank_dat->h_npart_cell[cellx]; 
-
-      const auto div_mod =
-          std::div(static_cast<long long>(num_particles), static_cast<long long>(NESO_VECTOR_LENGTH));
-      const std::size_t num_blocks =
-          static_cast<std::size_t>(div_mod.quot + (div_mod.rem == 0 ? 0 : 1));
-
-      const size_t ls = 128;
-      const size_t gs = get_global_size((std::size_t) num_blocks, ls);
 
       cgh.parallel_for<>(
           //sycl::range<1>(static_cast<size_t>(num_blocks)),
@@ -483,12 +482,11 @@ namespace NESO::GeneratedEvaluation::{namespace} {{
     """
 
     funcs += f"""
-template <typename COMPONENT_TYPE>
-inline bool vector_call_exists(
+inline bool generated_call_exists(
     const int num_modes,
     SYCLTargetSharedPtr sycl_target,
     ParticleGroupSharedPtr particle_group, 
-    Sym<COMPONENT_TYPE> sym,
+    Sym<REAL> sym,
     const int component,
     const int shape_count,
     const REAL * k_global_coeffs,
@@ -498,10 +496,6 @@ inline bool vector_call_exists(
   ) {{
     
     if (shape_count == 0){{
-        return false;
-    }}
-
-    if (!(std::is_same_v<COMPONENT_TYPE, REAL> == true)){{
         return false;
     }}
 

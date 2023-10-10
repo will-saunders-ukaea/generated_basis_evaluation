@@ -13,14 +13,14 @@ class ProjectBase:
         """
         self._dofs.set_evaluate_mode(False)
 
-        qoi, local_stride, local_id = self.generate_variable()
+        qoi, local_size, local_id = self.generate_variable()
         gmodes = self._get_modes()
         g = []
         for modei, gx in enumerate(gmodes):
             # di_read = self._dofs.generate_variable(modei)
             index_sym = symbols(f"pindex_{modei}")
             index_node = Initialise(
-                "int", Assign(index_sym, modei * local_stride + local_id)
+                "size_t", Assign(index_sym, modei * local_size + local_id)
             )
             index_node.preserve_ints = True
             index_node.count_ops = False
@@ -35,6 +35,6 @@ class ProjectBase:
         :returns: The symbol the evaluation will be stored on.
         """
         qoi = symbols(f"qoi")
-        local_stride = symbols(f"local_stride")
+        local_size = symbols(f"local_size")
         local_id = symbols(f"local_id")
-        return qoi, local_stride, local_id
+        return qoi, local_size, local_id

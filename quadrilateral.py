@@ -3,7 +3,7 @@ from dof_reader import *
 from jacobi import *
 from basis_functions import *
 from evaluate_base import *
-
+from project_base import *
 
 class Quadrilateral(ShapeBase):
     """
@@ -24,7 +24,7 @@ class Quadrilateral(ShapeBase):
         """
         """Number of modes in the expansion."""
         self.P = P
-        self._dofs = DofReader("dofs", self.total_num_modes())
+        self._dofs = DofReader("dofs", self.total_num_modes(self.P))
         self._eta0 = symbols("eta0")
         self._eta1 = symbols("eta1")
         jacobi0 = GenJacobi(self._eta0)
@@ -34,12 +34,14 @@ class Quadrilateral(ShapeBase):
         self._common = [jacobi0, self._dir0, jacobi1, self._dir1, self._dofs]
         self._g = self._generate()
 
-    def total_num_modes(self):
+    @staticmethod
+    def total_num_modes(P):
         """
+        :param P: Number of modes in one dimension.
         :returns: The total number of modes (DOFs) touched by this expansion
         looping.
         """
-        return self.P * self.P
+        return P * P
 
     def _get_modes(self):
         """
@@ -64,6 +66,14 @@ class Quadrilateral(ShapeBase):
 class QuadrilateralEvaluate(Quadrilateral, EvaluateBase):
     """
     Implementation to evaluate expansions over a Quadrilateral.
+    """
+
+    pass
+
+
+class QuadrilateralProject(Quadrilateral, ProjectBase):
+    """
+    Implementation to project expansions over a Quadrilateral.
     """
 
     pass
