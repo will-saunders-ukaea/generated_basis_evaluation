@@ -6,6 +6,7 @@ from basis_functions import *
 from evaluate_base import *
 from project_base import *
 
+
 class Tetrahedron(ShapeBase):
     """
     Base class for Tetrahedron implementations.
@@ -98,6 +99,7 @@ class TetrahedronEvaluate(Tetrahedron, EvaluateBase):
     """
 
     pass
+
 
 class TetrahedronProject(Tetrahedron, ProjectBase):
     """

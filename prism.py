@@ -6,6 +6,7 @@ from basis_functions import *
 from evaluate_base import *
 from project_base import *
 
+
 class Prism(ShapeBase):
     """
     Base class for Prism implementations.
@@ -94,6 +95,7 @@ class PrismEvaluate(Prism, EvaluateBase):
     """
 
     pass
+
 
 class PrismProject(Prism, ProjectBase):
     """

@@ -5,6 +5,7 @@ from basis_functions import *
 from evaluate_base import *
 from project_base import *
 
+
 class Quadrilateral(ShapeBase):
     """
     Base class for Quadrilateral implementations.

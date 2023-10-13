@@ -47,7 +47,7 @@ class Hexahedron(ShapeBase):
             self._dofs,
         ]
         self._g = self._generate()
-    
+
     @staticmethod
     def total_num_modes(P):
         """

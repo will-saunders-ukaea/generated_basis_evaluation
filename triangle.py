@@ -6,6 +6,7 @@ from basis_functions import *
 from evaluate_base import *
 from project_base import *
 
+
 class Triangle(ShapeBase):
     """
     Base class for Triangle implementations.
@@ -77,6 +78,7 @@ class TriangleEvaluate(Triangle, EvaluateBase):
     """
 
     pass
+
 
 class TriangleProject(Triangle, ProjectBase):
     """

@@ -313,6 +313,7 @@ void project_scalar<%(PX)s>(
 
             sycl::group_barrier(nd_idx.get_group());
             
+            /*
             if (local_id == 0){
                 for(int dx=0 ; dx<(%(NUM_DOFS)s) ; dx++){
                     REAL tmp_dof = 0.0;
@@ -325,7 +326,34 @@ void project_scalar<%(PX)s>(
                     coeff_atomic_ref.fetch_add(tmp_dof);
                 }
             }
-
+            */
+            
+            if (local_size < (%(NUM_DOFS)s)) {
+                for(int dx = local_id ; dx<(%(NUM_DOFS)s) ; dx+=local_size){
+                  REAL tmp_dof = 0.0;
+                  for(int ix=0 ; ix<local_size ; ix++){
+                    tmp_dof += local_mem[ix + dx*local_size];
+                  }
+                  sycl::atomic_ref<REAL, sycl::memory_order::relaxed,
+                  sycl::memory_scope::device>
+                  coeff_atomic_ref(dofs[dx]);
+                  coeff_atomic_ref.fetch_add(tmp_dof);
+                }
+            } else {
+              for(int dx=0 ; dx<(%(NUM_DOFS)s) ; dx++){
+                const REAL local_contribution = local_mem[local_id + dx*local_size];
+                const REAL group_contribution = sycl::reduce_over_group(
+                    nd_idx.get_group(), local_contribution, sycl::plus<REAL>());
+              
+                if (local_id == 0){
+                  sycl::atomic_ref<REAL, sycl::memory_order::relaxed,
+                  sycl::memory_scope::device>
+                  coeff_atomic_ref(dofs[dx]);
+                  coeff_atomic_ref.fetch_add(group_contribution);
+                }
+              }
+            }
+ 
           });
     });
 
@@ -340,8 +368,6 @@ void project_scalar<%(PX)s>(
     funcs += f"}} // namespace NESO::GeneratedProjection::{namespace}"
 
     return funcs
-
-
 
 
 def generate_project_sources(P, geom_type):

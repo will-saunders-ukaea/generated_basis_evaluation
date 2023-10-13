@@ -98,6 +98,7 @@ class PyramidEvaluate(Pyramid, EvaluateBase):
 
     pass
 
+
 class PyramidProject(Pyramid, ProjectBase):
     """
     Implementation to project expansions over a Pyramid.

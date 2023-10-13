@@ -10,6 +10,7 @@ from triangle import *
 from prism import *
 from tetrahedron import *
 from pyramid import *
+from multiprocessing import Pool
 
 
 def header_name_evaluate(t):
@@ -23,8 +24,21 @@ def header_name_project(t):
 def source_name_evaluate(t, p):
     return f"evaluate_{t.namespace.lower()}_{p}.cpp"
 
+
 def source_name_project(t, p):
     return f"project_{t.namespace.lower()}_{p}.cpp"
+
+
+utility_sycl = "<nektar_interface/utility_sycl.hpp>"
+P = 8
+
+
+def ewrapper(ttx):
+    return generate_vector_wrappers(P, ttx, headers=(utility_sycl,))
+
+
+def pwrapper(ttx):
+    return generate_project_wrappers(P, ttx, headers=(utility_sycl,))
 
 
 if __name__ == "__main__":
@@ -40,14 +54,11 @@ if __name__ == "__main__":
     dir_include_cmake_dir = os.path.join(
         "${INC_DIR}", "nektar_interface", "expansion_looping", "generated"
     )
-    utility_sycl = "<nektar_interface/utility_sycl.hpp>"
 
     if not os.path.exists(dir_include_gen_dir):
         os.makedirs(dir_include_gen_dir)
     if not os.path.exists(dir_src_gen_dir):
         os.makedirs(dir_src_gen_dir)
-
-    P = 3
 
     types_evaluate = (
         QuadrilateralEvaluate,
@@ -70,21 +81,27 @@ if __name__ == "__main__":
     header_list = []
     cmake_include_list = []
 
-    for tx in types_evaluate:
+    pool = Pool()
+
+    srcs = pool.map(ewrapper, types_evaluate)
+
+    for ti, tx in enumerate(types_evaluate):
         filename = header_name_evaluate(tx)
         header_list.append(f'#include "{filename}"')
         cmake_include_list.append(os.path.join(dir_include_cmake_dir, filename))
-
-        src = generate_vector_wrappers(P, tx, headers=(utility_sycl,))
+        # src = generate_vector_wrappers(P, tx, headers=(utility_sycl,))
+        src = srcs[ti]
         with open(os.path.join(dir_include_gen_dir, filename), "w+") as fh:
             fh.write(src)
 
-    for tx in types_project:
+    srcs = pool.map(pwrapper, types_project)
+
+    for ti, tx in enumerate(types_project):
         filename = header_name_project(tx)
         header_list.append(f'#include "{filename}"')
         cmake_include_list.append(os.path.join(dir_include_cmake_dir, filename))
-
-        src = generate_project_wrappers(P, tx, headers=(utility_sycl,))
+        # src = generate_project_wrappers(P, tx, headers=(utility_sycl,))
+        src = srcs[ti]
         with open(os.path.join(dir_include_gen_dir, filename), "w+") as fh:
             fh.write(src)
 
@@ -131,8 +148,6 @@ using namespace NESO::Particles;
             with open(filepath, "w+") as fh:
                 fh.write(f"#include <{os.path.relpath(wrapper_filename, dir_include)}>")
                 fh.write(sx)
-
-
 
     cmake_src_list = "\n".join(src_files)
 

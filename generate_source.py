@@ -82,6 +82,7 @@ def sort_exprs(rewrite_list, ast_cse_list):
 
 symbols_generator = numbered_symbols()
 
+
 def pass_cse(expr_list, t):
     output_steps = [lx[0] for lx in expr_list]
     steps = [lx[1] for lx in expr_list]
@@ -221,7 +222,9 @@ inline {t} evaluate<{px}>(
     return funcs
 
 
-def generate_template_specialisation(p, geom_type, t = "sycl::vec<REAL, NESO_VECTOR_LENGTH>"):
+def generate_template_specialisation(
+    p, geom_type, t="sycl::vec<REAL, NESO_VECTOR_LENGTH>"
+):
     namespace = geom_type.namespace
     shape_name = namespace.lower()
     evaluation_type = geom_type.helper_class
